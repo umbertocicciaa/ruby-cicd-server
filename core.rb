@@ -4,6 +4,7 @@ require_relative 'exceptions.rb'
 require_relative 'logging.rb'
 
 module Core 
+  # Pull code from remote
   def self.pull_code(url)
     Logging.step("Pull Code")
     raise Exceptions::EmptyUrlException if url.nil? || url.empty?  
@@ -16,6 +17,7 @@ module Core
     Logging.info("Repository cloned successfully")
   end
   
+  # Build your code
   def self.execute(build)
     Logging.step("Build")
     raise Exceptions::EmptyBuildCommandException if build.nil? || build.empty?
@@ -28,8 +30,16 @@ module Core
     Logging.info("Build completed successfully")
   end
   
-  def self.deploy()
+  # Deploy your code
+  def self.deploy(deploy_command)
     Logging.step("Deploy")
     Logging.warn("Deploy step is not yet implemented")
+    raise Exceptions::EmptyDeployCommandException if deploy_command.nil? || deploy_command.empty?
+    Utils::change_directory(REPOSITORY_DESTINATION.to_s)
+    Logging.timed("build execution") do
+      result = system("#{deploy_command}")
+      raise Exceptions::DeployException, "Deploy command '#{deploy_command}' failed with a non-zero exit status in directory '#{Dir.pwd}'. Check the deploy output above." unless result
+    end
+    Logging.info("Deploy completed successfully")
   end
 end
