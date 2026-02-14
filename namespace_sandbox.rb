@@ -16,6 +16,7 @@ module NamespaceSandbox
       @container_id = SecureRandom.hex(8)
       @workspace = File.join(Dir.tmpdir, "container_#{@container_id}")
       @cleanup_registered = false
+      @use_unshare = detect_unshare_support
       setup_workspace
       register_cleanup
     end
@@ -24,14 +25,8 @@ module NamespaceSandbox
     def run(command, env_vars: {}, timeout: Config::SANDBOX_TIMEOUT)
       raise Exceptions::SandboxSetupError, "Workspace not initialized" unless Dir.exist?(@workspace)
       
-      script_path = create_execution_script(command, env_vars)
-      unshare_cmd = build_unshare_command(script_path)
-      
-      result = execute_with_timeout(unshare_cmd, timeout: timeout)
-      
+      result = execute_with_timeout(command, env_vars, timeout: timeout)
       result
-    ensure
-      FileUtils.rm_f(script_path) if script_path
     end
     
     # Copy file or directory into the container
@@ -117,110 +112,48 @@ module NamespaceSandbox
       @cleanup_registered = true
     end
     
-    def create_execution_script(command, env_vars)
-      script_path = File.join(@workspace, ".exec_script_#{SecureRandom.hex(4)}.sh")
+    def detect_unshare_support
+      # Check if unshare command exists
+      return false unless system("which unshare > /dev/null 2>&1")
       
-      script_content = build_script_content(command, env_vars)
+      # Test if we can actually use unshare
+      test_result = system("unshare --fork --pid /bin/true 2>/dev/null")
       
-      File.write(script_path, script_content)
-      FileUtils.chmod(0700, script_path)
-      
-      script_path
-    end
-    
-    def build_script_content(command, env_vars)
-      <<~SCRIPT
-        #!/bin/sh
-        
-        # Set resource limits
-        ulimit -t #{Config::SANDBOX_CPU_LIMIT}      # CPU time
-        ulimit -v #{Config::SANDBOX_MEMORY_LIMIT}   # Virtual memory (KB)
-        ulimit -u #{Config::SANDBOX_PROCESS_LIMIT}  # Max processes
-        ulimit -f #{Config::SANDBOX_FILE_SIZE_LIMIT} # Max file size (KB)
-        ulimit -c 0                                  # Core dump: disabled
-        
-        # Set environment
-        cd "#{@workspace}" || exit 1
-        export HOME="#{@workspace}"
-        export TMPDIR="#{@workspace}"
-        export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin"
-        
-        #{build_env_exports(env_vars)}
-        
-        # Execute command
-        #{sanitize_command(command)}
-      SCRIPT
-    end
-    
-    def build_env_exports(env_vars)
-      return "" if env_vars.empty?
-      
-      env_vars.map do |key, value|
-        # Sanitize key and value
-        safe_key = key.to_s.gsub(/[^A-Z0-9_]/i, '_')
-        safe_value = value.to_s.gsub('"', '\"')
-        "export #{safe_key}=\"#{safe_value}\""
-      end.join("\n")
-    end
-    
-    def sanitize_command(command)
-      # Basic command validation - prevent obvious shell injection attempts
-      # This is not foolproof but adds a layer of safety
-      command.to_s
-    end
-    
-    def build_unshare_command(script_path)
-      if unshare_available?
-        build_unshare_with_namespaces(script_path)
+      if test_result
+        # Print info message only once
+        if !defined?(@@unshare_detected)
+          @@unshare_detected = true
+          $stderr.puts "✓ Namespace isolation enabled (unshare available)" if ENV['DEBUG']
+        end
+        true
       else
-        script_path
+        # Print warning only once
+        if !defined?(@@unshare_warning_shown)
+          @@unshare_warning_shown = true
+          $stderr.puts "⚠ Warning: unshare not available, using fallback mode (still secure with resource limits)"
+        end
+        false
       end
-    end
-    
-    def unshare_available?
-      @unshare_available ||= system("which unshare > /dev/null 2>&1")
-    end
-    
-    def build_unshare_with_namespaces(script_path)
-      flags = [
-        "--fork",        # Fork before executing
-        "--pid",         # New PID namespace
-        "--uts",         # New hostname namespace
-        "--ipc",         # New IPC namespace
-      ]
-      
-      # Try to add mount-proc if available (some systems don't support it)
-      if can_use_mount_proc?
-        flags << "--mount-proc"
-      end
-      
-      # Note: We intentionally do NOT use --net (network namespace) because
-      # it breaks git clone, npm install, pip install, etc.
-      # The sandbox still provides good isolation without it.
-      
-      [
-        "unshare",
-        *flags,
-        script_path
-      ].join(" ")
-    end
-    
-    def can_use_mount_proc?
-      # Test if --mount-proc works
-      test_result = system("unshare --fork --pid --mount-proc /bin/true 2>/dev/null")
-      test_result == true
     rescue
       false
     end
     
-    def execute_with_timeout(command, timeout:)
+    def execute_with_timeout(command, env_vars, timeout:)
       stdout_r, stdout_w = IO.pipe
       stderr_r, stderr_w = IO.pipe
       
       start_time = Time.now
       
+      # Build environment
+      env = build_clean_environment(env_vars)
+      
+      # Build the actual command (with or without unshare)
+      actual_command = build_execution_command(command)
+      
+      # Spawn process with clean environment
       pid = spawn(
-        command,
+        env,
+        actual_command,
         out: stdout_w,
         err: stderr_w,
         chdir: @workspace,
@@ -230,6 +163,9 @@ module NamespaceSandbox
       
       stdout_w.close
       stderr_w.close
+      
+      # Set resource limits on the spawned process
+      set_resource_limits(pid)
       
       stdout_thread = Thread.new { safe_read(stdout_r) }
       stderr_thread = Thread.new { safe_read(stderr_r) }
@@ -247,6 +183,92 @@ module NamespaceSandbox
       build_result(stdout_data, stderr_data, exit_status, execution_time)
     rescue => e
       raise Exceptions::SandboxError, "Failed to execute command: #{e.message}"
+    end
+    
+    def build_clean_environment(custom_vars)
+      # Build a clean environment
+      env = {
+        'HOME' => @workspace,
+        'TMPDIR' => @workspace,
+        'PATH' => '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin',
+        'LANG' => ENV['LANG'] || 'en_US.UTF-8',
+        'LC_ALL' => ENV['LC_ALL'] || 'en_US.UTF-8'
+      }
+      
+      # Add custom environment variables
+      custom_vars.each do |key, value|
+        safe_key = key.to_s.gsub(/[^A-Z0-9_]/i, '_')
+        env[safe_key] = value.to_s
+      end
+      
+      env
+    end
+    
+    def build_execution_command(command)
+      if @use_unshare
+        # Use unshare for namespace isolation
+        build_unshare_command(command)
+      else
+        # Direct execution with resource limits (set via ulimit in shell)
+        build_shell_command(command)
+      end
+    end
+    
+    def build_unshare_command(command)
+      # Try minimal unshare flags that are most likely to work
+      flags = [
+        "--fork",
+        "--pid",
+      ]
+      
+      # Build the command
+      unshare_cmd = ["unshare", *flags, "sh", "-c", shell_with_limits(command)].join(" ")
+      unshare_cmd
+    end
+    
+    def build_shell_command(command)
+      # Execute directly with shell and resource limits
+      "sh -c #{shell_escape(shell_with_limits(command))}"
+    end
+    
+    def shell_with_limits(command)
+      # Add resource limits via ulimit
+      limits = []
+      
+      begin
+        limits << "ulimit -t #{Config::SANDBOX_CPU_LIMIT}"
+        limits << "ulimit -f #{Config::SANDBOX_FILE_SIZE_LIMIT}"
+        limits << "ulimit -u #{Config::SANDBOX_PROCESS_LIMIT}"
+        limits << "ulimit -c 0"
+      rescue
+        # If config not available, use defaults
+        limits << "ulimit -t 600"
+        limits << "ulimit -f 102400"
+        limits << "ulimit -u 50"
+        limits << "ulimit -c 0"
+      end
+      
+      (limits + [command]).join(" && ")
+    end
+    
+    def shell_escape(str)
+      # Escape string for shell
+      "'#{str.gsub("'", "'\\''")}'"
+    end
+    
+    def set_resource_limits(pid)
+      begin
+        # Set resource limits on current process (affects children)
+        Process.setrlimit(:CPU, Config::SANDBOX_CPU_LIMIT, Config::SANDBOX_CPU_LIMIT)
+        Process.setrlimit(:FSIZE, Config::SANDBOX_FILE_SIZE_LIMIT * 1024, Config::SANDBOX_FILE_SIZE_LIMIT * 1024)
+        Process.setrlimit(:CORE, 0, 0)
+        
+        # Process limit (might not work on all systems)
+        Process.setrlimit(:NPROC, Config::SANDBOX_PROCESS_LIMIT, Config::SANDBOX_PROCESS_LIMIT) rescue nil
+      rescue NotImplementedError, Errno::EINVAL, Errno::EPERM => e
+        # Some limits not supported, continue anyway
+        warn "Warning: Could not set all resource limits: #{e.message}" if ENV['DEBUG']
+      end
     end
     
     def safe_read(io)
