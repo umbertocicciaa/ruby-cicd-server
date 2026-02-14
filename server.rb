@@ -2,23 +2,23 @@ require 'socket'
 require 'json'
 require_relative 'executor'
 
-server = TCPServer.new(8080)
+server = TCPServer.new 8080
 puts "Server running on http://localhost:8080"
 
 loop do
-  client = server.accept
+  Thread.start(server.accept) do |client|
 
   request_line = client.gets
+  puts "Request: #{request_line}"
 
   headers = {}
-  while (line = client.gets) != "\r\n"
+  while (line = client.gets) && line !~ /^\s*$/
     key, value = line.split(": ", 2)
-    headers[key] = value.strip
+    headers[key.strip] = value.strip if key && value
   end
 
   content_length = headers["Content-Length"].to_i
-  body = client.read(content_length)
-
+  body = content_length > 0 ? client.read(content_length) : ""
   puts "Raw body: #{body}"
 
   data = JSON.parse(body) rescue {}
@@ -45,4 +45,5 @@ loop do
   HTTP
 
   client.close
+  end
 end
