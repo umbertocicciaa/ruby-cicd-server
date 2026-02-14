@@ -143,44 +143,52 @@ module NamespaceSandbox
       stderr_r, stderr_w = IO.pipe
       
       start_time = Time.now
+      script_path = nil
       
-      # Build environment
-      env = build_clean_environment(env_vars)
-      
-      # Build the actual command (with or without unshare)
-      actual_command = build_execution_command(command)
-      
-      # Spawn process with clean environment
-      pid = spawn(
-        env,
-        actual_command,
-        out: stdout_w,
-        err: stderr_w,
-        chdir: @workspace,
-        pgroup: true,
-        close_others: true
-      )
-      
-      stdout_w.close
-      stderr_w.close
-      
-      # Set resource limits on the spawned process
-      set_resource_limits(pid)
-      
-      stdout_thread = Thread.new { safe_read(stdout_r) }
-      stderr_thread = Thread.new { safe_read(stderr_r) }
-      
-      exit_status = wait_for_process(pid, timeout)
-      
-      stdout_data = stdout_thread.value
-      stderr_data = stderr_thread.value
-      
-      stdout_r.close
-      stderr_r.close
-      
-      execution_time = Time.now - start_time
-      
-      build_result(stdout_data, stderr_data, exit_status, execution_time)
+      begin
+        # Build environment
+        env = build_clean_environment(env_vars)
+        
+        # Build the actual command (with or without unshare)
+        actual_command = build_execution_command(command)
+        
+        # Spawn process with clean environment
+        pid = spawn(
+          env,
+          actual_command,
+          out: stdout_w,
+          err: stderr_w,
+          chdir: @workspace,
+          pgroup: true,
+          close_others: true
+        )
+        
+        stdout_w.close
+        stderr_w.close
+        
+        # Set resource limits on the spawned process
+        set_resource_limits(pid)
+        
+        stdout_thread = Thread.new { safe_read(stdout_r) }
+        stderr_thread = Thread.new { safe_read(stderr_r) }
+        
+        exit_status = wait_for_process(pid, timeout)
+        
+        stdout_data = stdout_thread.value
+        stderr_data = stderr_thread.value
+        
+        stdout_r.close
+        stderr_r.close
+        
+        execution_time = Time.now - start_time
+        
+        build_result(stdout_data, stderr_data, exit_status, execution_time)
+      ensure
+        # Clean up temporary script files
+        Dir.glob(File.join(@workspace, ".exec_*.sh")).each do |f|
+          FileUtils.rm_f(f) rescue nil
+        end
+      end
     rescue => e
       raise Exceptions::SandboxError, "Failed to execute command: #{e.message}"
     end
@@ -215,6 +223,9 @@ module NamespaceSandbox
     end
     
     def build_unshare_command(command)
+      # Create a script file with the command
+      script_path = create_execution_script(command)
+      
       # Try minimal unshare flags that are most likely to work
       flags = [
         "--fork",
@@ -222,38 +233,40 @@ module NamespaceSandbox
       ]
       
       # Build the command
-      unshare_cmd = ["unshare", *flags, "sh", "-c", shell_with_limits(command)].join(" ")
-      unshare_cmd
+      ["unshare", *flags, "sh", script_path].join(" ")
     end
     
     def build_shell_command(command)
       # Execute directly with shell and resource limits
-      "sh -c #{shell_escape(shell_with_limits(command))}"
+      # Write to a temp script file to avoid complex escaping
+      script_path = create_execution_script(command)
+      "sh #{script_path}"
+    end
+    
+    def create_execution_script(command)
+      script_path = File.join(@workspace, ".exec_#{SecureRandom.hex(4)}.sh")
+      
+      script_content = <<~SCRIPT
+        #!/bin/sh
+        # Set resource limits
+        ulimit -t #{Config::SANDBOX_CPU_LIMIT} 2>/dev/null || ulimit -t 600
+        ulimit -f #{Config::SANDBOX_FILE_SIZE_LIMIT} 2>/dev/null || ulimit -f 102400
+        ulimit -u #{Config::SANDBOX_PROCESS_LIMIT} 2>/dev/null || ulimit -u 50
+        ulimit -c 0 2>/dev/null || true
+        
+        # Execute command
+        #{command}
+      SCRIPT
+      
+      File.write(script_path, script_content)
+      FileUtils.chmod(0700, script_path)
+      
+      script_path
     end
     
     def shell_with_limits(command)
-      # Add resource limits via ulimit
-      limits = []
-      
-      begin
-        limits << "ulimit -t #{Config::SANDBOX_CPU_LIMIT}"
-        limits << "ulimit -f #{Config::SANDBOX_FILE_SIZE_LIMIT}"
-        limits << "ulimit -u #{Config::SANDBOX_PROCESS_LIMIT}"
-        limits << "ulimit -c 0"
-      rescue
-        # If config not available, use defaults
-        limits << "ulimit -t 600"
-        limits << "ulimit -f 102400"
-        limits << "ulimit -u 50"
-        limits << "ulimit -c 0"
-      end
-      
-      (limits + [command]).join(" && ")
-    end
-    
-    def shell_escape(str)
-      # Escape string for shell
-      "'#{str.gsub("'", "'\\''")}'"
+      # This is used for unshare mode
+      command
     end
     
     def set_resource_limits(pid)
