@@ -98,7 +98,7 @@ module NamespaceSandbox
           "unshare is required but not found. This software requires Linux with util-linux installed."
       end
 
-      unless system("unshare --fork --pid --mount-proc /bin/true 2>/dev/null")
+      unless system("unshare --fork --pid --uts --ipc /bin/true 2>/dev/null")
         raise Exceptions::SandboxSetupError,
           "unshare is available but lacks required privileges. Run as root or enable user namespaces " \
           "(sysctl kernel.unprivileged_userns_clone=1)."
@@ -188,11 +188,10 @@ module NamespaceSandbox
     def build_unshare_command(script_path)
       [
         "unshare",
-        "--fork",          # fork before exec so PID namespace works
-        "--pid",           # new PID namespace — process sees only itself
-        "--mount-proc",    # mount fresh /proc inside so ps/kill work correctly
-        "--uts",           # new UTS namespace — isolated hostname
-        "--ipc",           # new IPC namespace — isolated shared memory / semaphores
+        "--fork",               # fork before exec so PID namespace works
+        "--pid",                # new PID namespace — process sees only itself
+        "--uts",                # new UTS namespace — isolated hostname
+        "--ipc",                # new IPC namespace — isolated shared memory / semaphores
         "sh", script_path
       ]
     end
