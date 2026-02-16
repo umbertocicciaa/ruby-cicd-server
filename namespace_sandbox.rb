@@ -191,7 +191,6 @@ module NamespaceSandbox
         "--fork",          # fork before exec so PID namespace works
         "--pid",           # new PID namespace — process sees only itself
         "--mount-proc",    # mount fresh /proc inside so ps/kill work correctly
-        "--net",           # new network namespace — no network access
         "--uts",           # new UTS namespace — isolated hostname
         "--ipc",           # new IPC namespace — isolated shared memory / semaphores
         "sh", script_path
