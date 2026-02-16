@@ -52,7 +52,8 @@ module Monitoring
       metrics.successful_runs = hash['successful_runs'] || 0
       metrics.failed_runs = hash['failed_runs'] || 0
       metrics.total_execution_time = hash['total_execution_time'] || 0.0
-      metrics.errors = hash['errors'] || {}
+      errors = hash['errors'] || {}
+      metrics.errors = Hash.new(0).merge(errors)
       metrics
     end
   end
