@@ -50,20 +50,6 @@ curl -X POST http://localhost:8080 \
   }'
 ```
 
-## Key Improvements
-
-### Over Original Code
-
-1. **Better Error Handling** - Custom exception hierarchy with context
-2. **Enhanced Security** - Request limits, URL validation, namespace isolation
-3. **Improved Logging** - Color-coded output, file rotation, timing
-4. **Monitoring** - Success rate tracking, metrics endpoint
-5. **Code Quality** - Modular, documented, consistent naming
-6. **HTTP Server** - Proper request/response objects, multiple endpoints
-7. **Configuration** - Environment variables, centralized constants
-
-See full documentation in the file for details.
-
 ## License
 
 See LICENSE file
