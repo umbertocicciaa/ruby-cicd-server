@@ -1,10 +1,11 @@
 # frozen_string_literal: true
 
 require 'rake/testtask'
+require 'rubocop/rake_task'
 
-desc "Start the CI/CD server"
+desc 'Start the CI/CD server'
 task :start do
-  ruby "server.rb"
+  ruby 'server.rb'
 end
 
 Rake::TestTask.new(:test) do |t|
@@ -12,9 +13,16 @@ Rake::TestTask.new(:test) do |t|
   t.warning = false
 end
 
-desc "Run tests with coverage report"
+desc 'Run tests with coverage report'
 task :coverage do
-  ruby "test/run_all.rb"
+  ruby 'test/run_all.rb'
+end
+
+# RuboCop auto-format task
+desc 'Auto-format code with RuboCop'
+RuboCop::RakeTask.new(:format) do |task|
+  task.patterns = ['**/*.rb']
+  task.options = ['-a'] # use '-a' for safe autocorrect only
 end
 
 task default: :test
