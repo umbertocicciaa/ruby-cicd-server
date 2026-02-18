@@ -35,19 +35,19 @@ module Logging
         Config::LOG_ROTATION_COUNT,
         Config::LOG_FILE_SIZE
       )
-      
+
       console_logger = Logger.new($stdout)
 
       file_logger.level = Logger::DEBUG
       console_logger.level = Logger::INFO
 
       file_formatter = proc do |severity, datetime, _progname, msg|
-        timestamp = datetime.strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.strftime('%Y-%m-%d %H:%M:%S')
         "[#{timestamp}] [#{severity.ljust(5)}] #{msg}\n"
       end
 
       console_formatter = proc do |severity, datetime, _progname, msg|
-        timestamp = datetime.strftime("%H:%M:%S")
+        timestamp = datetime.strftime('%H:%M:%S')
         color = severity_color(severity)
         "#{color}[#{timestamp}] [#{severity.ljust(5)}] #{msg}#{COLORS[:reset]}\n"
       end
@@ -84,7 +84,7 @@ module Logging
     end
 
     def step(message)
-      separator = "=" * 60
+      separator = '=' * 60
       puts "\n#{COLORS[:blue]}#{COLORS[:bold]}#{separator}#{COLORS[:reset]}"
       puts "#{COLORS[:blue]}#{COLORS[:bold]}▶ #{message}#{COLORS[:reset]}"
       puts "#{COLORS[:blue]}#{COLORS[:bold]}#{separator}#{COLORS[:reset]}\n"
@@ -116,13 +116,13 @@ module Logging
 
     def severity_color(severity)
       case severity.to_s.upcase
-      when "DEBUG"
+      when 'DEBUG'
         COLORS[:gray]
-      when "INFO"
+      when 'INFO'
         COLORS[:cyan]
-      when "WARN"
+      when 'WARN'
         COLORS[:yellow]
-      when "ERROR", "FATAL"
+      when 'ERROR', 'FATAL'
         COLORS[:red]
       else
         COLORS[:reset]

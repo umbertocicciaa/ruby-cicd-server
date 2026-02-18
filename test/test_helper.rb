@@ -43,20 +43,18 @@ at_exit do
   overall_pct = total_lines > 0 ? ((covered_lines.to_f / total_lines) * 100).round(1) : 0.0
 
   puts "\n#{'=' * 70}"
-  puts "COVERAGE REPORT (Ruby built-in Coverage module)"
+  puts 'COVERAGE REPORT (Ruby built-in Coverage module)'
   puts '=' * 70
-  printf "%-28s %8s %8s %8s\n", "File", "Lines", "Covered", "Coverage"
+  printf "%-28s %8s %8s %8s\n", 'File', 'Lines', 'Covered', 'Coverage'
   puts '-' * 70
 
   uncovered_details.sort_by { |d| d[:pct] }.each do |d|
     printf "%-28s %8d %8d %7.1f%%\n", d[:file], d[:total], d[:covered], d[:pct]
-    unless d[:uncovered_lines].empty?
-      puts "    uncovered lines: #{d[:uncovered_lines].join(', ')}"
-    end
+    puts "    uncovered lines: #{d[:uncovered_lines].join(', ')}" unless d[:uncovered_lines].empty?
   end
 
   puts '-' * 70
-  printf "%-28s %8d %8d %7.1f%%\n", "TOTAL", total_lines, covered_lines, overall_pct
+  printf "%-28s %8d %8d %7.1f%%\n", 'TOTAL', total_lines, covered_lines, overall_pct
   puts '=' * 70
 
   if overall_pct < 90.0

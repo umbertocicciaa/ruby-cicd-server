@@ -18,7 +18,7 @@ class TestLogging < Minitest::Test
     l2.level = Logger::DEBUG
 
     ml = Logging::MultiLogger.new(l1, l2)
-    ml.info("hello multi")
+    ml.info('hello multi')
 
     assert_match(/hello multi/, buf1.string)
     assert_match(/hello multi/, buf2.string)
@@ -59,45 +59,45 @@ class TestLogging < Minitest::Test
 
   # --- Logging module methods ---
   def test_info_method
-    out, _err = capture_io { Logging.info("info_test_msg") }
+    out, _err = capture_io { Logging.info('info_test_msg') }
     assert_match(/info_test_msg/, out)
   end
 
   def test_debug_method
     # Debug goes to file only (console level is INFO), so just ensure no error
-    capture_io { Logging.debug("debug_test_msg") }
+    capture_io { Logging.debug('debug_test_msg') }
     # No assertion on output since console level filters debug
   end
 
   def test_warn_method
-    out, _err = capture_io { Logging.warn("warn_test_msg") }
+    out, _err = capture_io { Logging.warn('warn_test_msg') }
     assert_match(/warn_test_msg/, out)
   end
 
   def test_error_method
-    out, _err = capture_io { Logging.error("error_test_msg") }
+    out, _err = capture_io { Logging.error('error_test_msg') }
     assert_match(/error_test_msg/, out)
   end
 
   def test_fatal_method
-    out, _err = capture_io { Logging.fatal("fatal_test_msg") }
+    out, _err = capture_io { Logging.fatal('fatal_test_msg') }
     assert_match(/fatal_test_msg/, out)
   end
 
   def test_success_method
-    out, _err = capture_io { Logging.success("success_msg") }
+    out, _err = capture_io { Logging.success('success_msg') }
     assert_match(/success_msg/, out)
   end
 
   def test_step_method
-    out, _err = capture_io { Logging.step("step_title") }
+    out, _err = capture_io { Logging.step('step_title') }
     assert_match(/step_title/, out)
     assert_match(/={60}/, out) # separator
   end
 
   def test_timed_method_success
     out, _err = capture_io do
-      result = Logging.timed("test_block") { 42 }
+      result = Logging.timed('test_block') { 42 }
       assert_equal 42, result
     end
     assert_match(/Starting: test_block/, out)
@@ -107,13 +107,13 @@ class TestLogging < Minitest::Test
   def test_timed_method_failure
     assert_raises(RuntimeError) do
       capture_io do
-        Logging.timed("fail_block") { raise "boom" }
+        Logging.timed('fail_block') { raise 'boom' }
       end
     end
   end
 
   def test_section_method
-    out, _err = capture_io { Logging.section("section_title") }
+    out, _err = capture_io { Logging.section('section_title') }
     assert_match(/section_title/, out)
   end
 
@@ -128,32 +128,32 @@ class TestLogging < Minitest::Test
 
   # --- severity_color (private) ---
   def test_severity_color_debug
-    color = Logging.send(:severity_color, "DEBUG")
+    color = Logging.send(:severity_color, 'DEBUG')
     assert_equal Logging::COLORS[:gray], color
   end
 
   def test_severity_color_info
-    color = Logging.send(:severity_color, "INFO")
+    color = Logging.send(:severity_color, 'INFO')
     assert_equal Logging::COLORS[:cyan], color
   end
 
   def test_severity_color_warn
-    color = Logging.send(:severity_color, "WARN")
+    color = Logging.send(:severity_color, 'WARN')
     assert_equal Logging::COLORS[:yellow], color
   end
 
   def test_severity_color_error
-    color = Logging.send(:severity_color, "ERROR")
+    color = Logging.send(:severity_color, 'ERROR')
     assert_equal Logging::COLORS[:red], color
   end
 
   def test_severity_color_fatal
-    color = Logging.send(:severity_color, "FATAL")
+    color = Logging.send(:severity_color, 'FATAL')
     assert_equal Logging::COLORS[:red], color
   end
 
   def test_severity_color_unknown
-    color = Logging.send(:severity_color, "UNKNOWN")
+    color = Logging.send(:severity_color, 'UNKNOWN')
     assert_equal Logging::COLORS[:reset], color
   end
 end

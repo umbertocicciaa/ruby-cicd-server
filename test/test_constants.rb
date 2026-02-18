@@ -4,15 +4,15 @@ require_relative 'test_helper'
 
 class TestConstants < Minitest::Test
   def test_repository_destination
-    assert_equal "repository_cloned", Config::REPOSITORY_DESTINATION
+    assert_equal 'repository_cloned', Config::REPOSITORY_DESTINATION
   end
 
   def test_logs_directory
-    assert_equal "logs", Config::LOGS_DIRECTORY
+    assert_equal 'logs', Config::LOGS_DIRECTORY
   end
 
   def test_logs_file
-    assert_equal "cicd.log", Config::LOGS_FILE
+    assert_equal 'cicd.log', Config::LOGS_FILE
   end
 
   def test_sandbox_timeout

@@ -23,7 +23,7 @@ module NamespaceSandbox
 
     # Execute a command in the sandboxed container
     def run(command, env_vars: {}, timeout: Config::SANDBOX_TIMEOUT)
-      raise Exceptions::SandboxSetupError, "Workspace not initialized" unless Dir.exist?(@workspace)
+      raise Exceptions::SandboxSetupError, 'Workspace not initialized' unless Dir.exist?(@workspace)
 
       execute_with_timeout(command, env_vars, timeout: timeout)
     end
@@ -61,11 +61,11 @@ module NamespaceSandbox
     end
 
     # List files in the container workspace
-    def list_files(path = ".")
+    def list_files(path = '.')
       full_path = File.join(@workspace, path)
       return [] unless Dir.exist?(full_path)
 
-      Dir.entries(full_path).reject { |f| f == '.' || f == '..' }
+      Dir.entries(full_path).reject { |f| ['.', '..'].include?(f) }
     end
 
     # Get the size of the workspace
@@ -77,7 +77,7 @@ module NamespaceSandbox
         total_size += File.size(path) if File.file?(path)
       end
       total_size
-    rescue
+    rescue StandardError
       0
     end
 
@@ -86,29 +86,29 @@ module NamespaceSandbox
       return unless Dir.exist?(@workspace)
 
       FileUtils.rm_rf(@workspace)
-    rescue => e
+    rescue StandardError => e
       warn "Warning: Failed to clean up workspace #{@workspace}: #{e.message}"
     end
 
     private
 
     def require_unshare!
-      unless system("which unshare > /dev/null 2>&1")
+      unless system('which unshare > /dev/null 2>&1')
         raise Exceptions::SandboxSetupError,
-          "unshare is required but not found. This software requires Linux with util-linux installed."
+              'unshare is required but not found. This software requires Linux with util-linux installed.'
       end
 
-      unless system("unshare --fork --pid --uts --ipc /bin/true 2>/dev/null")
-        raise Exceptions::SandboxSetupError,
-          "unshare is available but lacks required privileges. Run as root or enable user namespaces " \
-          "(sysctl kernel.unprivileged_userns_clone=1)."
-      end
+      return if system('unshare --fork --pid --uts --ipc /bin/true 2>/dev/null')
+
+      raise Exceptions::SandboxSetupError,
+            'unshare is available but lacks required privileges. Run as root or enable user namespaces ' \
+            '(sysctl kernel.unprivileged_userns_clone=1).'
     end
 
     def setup_workspace
       FileUtils.mkdir_p(@workspace)
-      FileUtils.chmod(0700, @workspace)
-    rescue => e
+      FileUtils.chmod(0o700, @workspace)
+    rescue StandardError => e
       raise Exceptions::SandboxSetupError, "Failed to create workspace: #{e.message}"
     end
 
@@ -158,13 +158,15 @@ module NamespaceSandbox
 
         build_result(stdout_data, stderr_data, exit_status, execution_time)
       ensure
-        Dir.glob(File.join(@workspace, ".exec_*.sh")).each do |f|
-          FileUtils.rm_f(f) rescue nil
+        Dir.glob(File.join(@workspace, '.exec_*.sh')).each do |f|
+          FileUtils.rm_f(f)
+        rescue StandardError
+          nil
         end
       end
     rescue Exceptions::SandboxError
       raise
-    rescue => e
+    rescue StandardError => e
       raise Exceptions::SandboxError, "Failed to execute command: #{e.message}"
     end
 
@@ -187,12 +189,12 @@ module NamespaceSandbox
 
     def build_unshare_command(script_path)
       [
-        "unshare",
-        "--fork",               # fork before exec so PID namespace works
-        "--pid",                # new PID namespace — process sees only itself
-        "--uts",                # new UTS namespace — isolated hostname
-        "--ipc",                # new IPC namespace — isolated shared memory / semaphores
-        "sh", script_path
+        'unshare',
+        '--fork',               # fork before exec so PID namespace works
+        '--pid',                # new PID namespace — process sees only itself
+        '--uts',                # new UTS namespace — isolated hostname
+        '--ipc',                # new IPC namespace — isolated shared memory / semaphores
+        'sh', script_path
       ]
     end
 
@@ -215,14 +217,14 @@ module NamespaceSandbox
       SCRIPT
 
       File.write(script_path, script_content)
-      FileUtils.chmod(0700, script_path)
+      FileUtils.chmod(0o700, script_path)
 
       script_path
     end
 
     def safe_read(io)
       io.read
-    rescue => e
+    rescue StandardError => e
       "Error reading output: #{e.message}"
     end
 
@@ -239,11 +241,19 @@ module NamespaceSandbox
     def kill_process_group(pid)
       Process.kill('TERM', -pid)
       sleep 1
-      Process.kill('KILL', -pid) rescue nil
+      begin
+        Process.kill('KILL', -pid)
+      rescue StandardError
+        nil
+      end
     rescue Errno::ESRCH
       # already dead
     ensure
-      Process.wait(pid) rescue nil
+      begin
+        Process.wait(pid)
+      rescue StandardError
+        nil
+      end
     end
 
     def build_result(stdout_data, stderr_data, exit_status, execution_time)

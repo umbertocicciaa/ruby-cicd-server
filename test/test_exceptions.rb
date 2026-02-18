@@ -25,14 +25,14 @@ class TestExceptions < Minitest::Test
 
   # --- InvalidUrlException ---
   def test_invalid_url_exception_default_message
-    e = Exceptions::InvalidUrlException.new("bad-url")
+    e = Exceptions::InvalidUrlException.new('bad-url')
     assert_match(/Invalid repository URL/, e.message)
     assert_match(/bad-url/, e.message)
   end
 
   def test_invalid_url_exception_custom_message
-    e = Exceptions::InvalidUrlException.new("x", "custom msg")
-    assert_equal "custom msg", e.message
+    e = Exceptions::InvalidUrlException.new('x', 'custom msg')
+    assert_equal 'custom msg', e.message
   end
 
   # --- EmptyBuildCommandException ---
@@ -49,16 +49,16 @@ class TestExceptions < Minitest::Test
 
   # --- ExecutionError ---
   def test_execution_error_attributes
-    e = Exceptions::ExecutionError.new("ls -la", 1, "no such file")
-    assert_equal "ls -la", e.command
+    e = Exceptions::ExecutionError.new('ls -la', 1, 'no such file')
+    assert_equal 'ls -la', e.command
     assert_equal 1, e.exit_status
-    assert_equal "no such file", e.output
+    assert_equal 'no such file', e.output
     assert_match(/exit status 1/, e.message)
   end
 
   def test_execution_error_custom_message
-    e = Exceptions::ExecutionError.new("cmd", 2, "out", "custom")
-    assert_equal "custom", e.message
+    e = Exceptions::ExecutionError.new('cmd', 2, 'out', 'custom')
+    assert_equal 'custom', e.message
   end
 
   def test_execution_error_is_cicd_error
@@ -67,29 +67,29 @@ class TestExceptions < Minitest::Test
 
   # --- PullFailException ---
   def test_pull_fail_exception
-    e = Exceptions::PullFailException.new("https://github.com/repo.git", 128, "fatal error")
+    e = Exceptions::PullFailException.new('https://github.com/repo.git', 128, 'fatal error')
     assert_match(/Failed to clone/, e.message)
-    assert_equal "git clone https://github.com/repo.git", e.command
+    assert_equal 'git clone https://github.com/repo.git', e.command
     assert_equal 128, e.exit_status
-    assert_equal "fatal error", e.output
+    assert_equal 'fatal error', e.output
   end
 
   # --- BuildException ---
   def test_build_exception
-    e = Exceptions::BuildException.new("make build", 2, "compile error")
+    e = Exceptions::BuildException.new('make build', 2, 'compile error')
     assert_match(/Build command.*failed/, e.message)
-    assert_equal "make build", e.command
+    assert_equal 'make build', e.command
     assert_equal 2, e.exit_status
-    assert_equal "compile error", e.output
+    assert_equal 'compile error', e.output
   end
 
   # --- DeployException ---
   def test_deploy_exception
-    e = Exceptions::DeployException.new("deploy.sh", 1, "deploy failed")
+    e = Exceptions::DeployException.new('deploy.sh', 1, 'deploy failed')
     assert_match(/Deploy command.*failed/, e.message)
-    assert_equal "deploy.sh", e.command
+    assert_equal 'deploy.sh', e.command
     assert_equal 1, e.exit_status
-    assert_equal "deploy failed", e.output
+    assert_equal 'deploy failed', e.output
   end
 
   # --- SandboxError ---
@@ -104,8 +104,8 @@ class TestExceptions < Minitest::Test
   end
 
   def test_sandbox_timeout_error_custom
-    e = Exceptions::SandboxTimeoutError.new(60, "custom timeout msg")
-    assert_equal "custom timeout msg", e.message
+    e = Exceptions::SandboxTimeoutError.new(60, 'custom timeout msg')
+    assert_equal 'custom timeout msg', e.message
   end
 
   # --- SandboxSetupError ---
@@ -115,8 +115,8 @@ class TestExceptions < Minitest::Test
   end
 
   def test_sandbox_setup_error_custom
-    e = Exceptions::SandboxSetupError.new("custom setup msg")
-    assert_equal "custom setup msg", e.message
+    e = Exceptions::SandboxSetupError.new('custom setup msg')
+    assert_equal 'custom setup msg', e.message
   end
 
   # --- NetworkError ---

@@ -27,8 +27,8 @@ class TestContainerInternals < Minitest::Test
   end
 
   def test_workspace_permissions
-    mode = File.stat(@container.workspace).mode & 0777
-    assert_equal 0700, mode
+    mode = File.stat(@container.workspace).mode & 0o777
+    assert_equal 0o700, mode
   end
 
   # --- build_clean_environment ---
@@ -42,29 +42,29 @@ class TestContainerInternals < Minitest::Test
   end
 
   def test_build_clean_environment_custom_vars
-    env = @container.send(:build_clean_environment, { "FOO" => "bar", "BAZ" => 42 })
-    assert_equal "bar", env['FOO']
-    assert_equal "42", env['BAZ']
+    env = @container.send(:build_clean_environment, { 'FOO' => 'bar', 'BAZ' => 42 })
+    assert_equal 'bar', env['FOO']
+    assert_equal '42', env['BAZ']
   end
 
   def test_build_clean_environment_sanitizes_keys
-    env = @container.send(:build_clean_environment, { "BAD!KEY@#" => "val" })
-    assert_equal "val", env['BAD_KEY__']
+    env = @container.send(:build_clean_environment, { 'BAD!KEY@#' => 'val' })
+    assert_equal 'val', env['BAD_KEY__']
   end
 
   # --- build_unshare_command ---
   def test_build_unshare_command
-    cmd = @container.send(:build_unshare_command, "/tmp/script.sh")
-    assert_equal ["unshare", "--fork", "--pid", "--uts", "--ipc", "sh", "/tmp/script.sh"], cmd
+    cmd = @container.send(:build_unshare_command, '/tmp/script.sh')
+    assert_equal ['unshare', '--fork', '--pid', '--uts', '--ipc', 'sh', '/tmp/script.sh'], cmd
   end
 
   # --- create_execution_script ---
   def test_create_execution_script_content
-    path = @container.send(:create_execution_script, "echo hello_world")
+    path = @container.send(:create_execution_script, 'echo hello_world')
     assert File.exist?(path)
 
     content = File.read(path)
-    assert_match(/^#!\/bin\/sh/, content)
+    assert_match(%r{^#!/bin/sh}, content)
     assert_match(/set -e/, content)
     assert_match(/ulimit -t #{Config::SANDBOX_CPU_LIMIT}/, content)
     assert_match(/ulimit -v #{Config::SANDBOX_MEMORY_LIMIT}/, content)
@@ -77,9 +77,9 @@ class TestContainerInternals < Minitest::Test
   end
 
   def test_create_execution_script_permissions
-    path = @container.send(:create_execution_script, "true")
-    mode = File.stat(path).mode & 0777
-    assert_equal 0700, mode
+    path = @container.send(:create_execution_script, 'true')
+    mode = File.stat(path).mode & 0o777
+    assert_equal 0o700, mode
   ensure
     FileUtils.rm_f(path) if path
   end
@@ -87,32 +87,32 @@ class TestContainerInternals < Minitest::Test
   # --- safe_read ---
   def test_safe_read_normal
     r, w = IO.pipe
-    w.write("test_data")
+    w.write('test_data')
     w.close
-    assert_equal "test_data", @container.send(:safe_read, r)
+    assert_equal 'test_data', @container.send(:safe_read, r)
     r.close
   end
 
   def test_safe_read_empty
     r, w = IO.pipe
     w.close
-    assert_equal "", @container.send(:safe_read, r)
+    assert_equal '', @container.send(:safe_read, r)
     r.close
   end
 
   def test_safe_read_error
     io = Object.new
-    io.define_singleton_method(:read) { raise "io error" }
+    io.define_singleton_method(:read) { raise 'io error' }
     result = @container.send(:safe_read, io)
     assert_match(/Error reading output/, result)
   end
 
   # --- build_result ---
   def test_build_result_success
-    result = @container.send(:build_result, "stdout", "stderr", 0, 1.555)
-    assert_equal "stdoutstderr", result[:output]
-    assert_equal "stdout", result[:stdout]
-    assert_equal "stderr", result[:stderr]
+    result = @container.send(:build_result, 'stdout', 'stderr', 0, 1.555)
+    assert_equal 'stdoutstderr', result[:output]
+    assert_equal 'stdout', result[:stdout]
+    assert_equal 'stderr', result[:stderr]
     assert_equal 0, result[:status]
     assert result[:success]
     assert_equal 1.56, result[:execution_time]
@@ -120,13 +120,13 @@ class TestContainerInternals < Minitest::Test
   end
 
   def test_build_result_failure
-    result = @container.send(:build_result, "", "err", 1, 2.0)
+    result = @container.send(:build_result, '', 'err', 1, 2.0)
     refute result[:success]
     refute result[:timed_out]
   end
 
   def test_build_result_timeout
-    result = @container.send(:build_result, "", "", 124, 10.0)
+    result = @container.send(:build_result, '', '', 124, 10.0)
     assert result[:timed_out]
     refute result[:success]
   end
@@ -134,105 +134,105 @@ class TestContainerInternals < Minitest::Test
   # --- copy_into ---
   def test_copy_into_file
     tmp = File.join(Dir.tmpdir, "ci_test_#{SecureRandom.hex(4)}.txt")
-    File.write(tmp, "file content")
+    File.write(tmp, 'file content')
 
     dest = @container.copy_into(tmp)
     assert File.exist?(dest)
-    assert_equal "file content", File.read(dest)
+    assert_equal 'file content', File.read(dest)
   ensure
     FileUtils.rm_f(tmp)
   end
 
   def test_copy_into_file_custom_name
     tmp = File.join(Dir.tmpdir, "ci_test_#{SecureRandom.hex(4)}.txt")
-    File.write(tmp, "named")
+    File.write(tmp, 'named')
 
-    dest = @container.copy_into(tmp, "custom_name.txt")
-    assert_equal File.join(@container.workspace, "custom_name.txt"), dest
-    assert_equal "named", File.read(dest)
+    dest = @container.copy_into(tmp, 'custom_name.txt')
+    assert_equal File.join(@container.workspace, 'custom_name.txt'), dest
+    assert_equal 'named', File.read(dest)
   ensure
     FileUtils.rm_f(tmp)
   end
 
   def test_copy_into_directory
-    tmp_dir = Dir.mktmpdir("ci_copy_test")
-    File.write(File.join(tmp_dir, "inner.txt"), "inner")
+    tmp_dir = Dir.mktmpdir('ci_copy_test')
+    File.write(File.join(tmp_dir, 'inner.txt'), 'inner')
 
-    dest = @container.copy_into(tmp_dir, "copied_dir")
+    dest = @container.copy_into(tmp_dir, 'copied_dir')
     assert Dir.exist?(dest)
-    assert_equal "inner", File.read(File.join(dest, "inner.txt"))
+    assert_equal 'inner', File.read(File.join(dest, 'inner.txt'))
   ensure
     FileUtils.rm_rf(tmp_dir)
   end
 
   def test_copy_into_nonexistent_raises
     assert_raises(ArgumentError) do
-      @container.copy_into("/nonexistent_file_xyz_12345")
+      @container.copy_into('/nonexistent_file_xyz_12345')
     end
   end
 
   # --- copy_out ---
   def test_copy_out_file
-    File.write(File.join(@container.workspace, "out.txt"), "outgoing")
+    File.write(File.join(@container.workspace, 'out.txt'), 'outgoing')
     dest = File.join(Dir.tmpdir, "ci_out_#{SecureRandom.hex(4)}.txt")
 
-    assert @container.copy_out("out.txt", dest)
-    assert_equal "outgoing", File.read(dest)
+    assert @container.copy_out('out.txt', dest)
+    assert_equal 'outgoing', File.read(dest)
   ensure
     FileUtils.rm_f(dest)
   end
 
   def test_copy_out_directory
-    sub = File.join(@container.workspace, "subdir")
+    sub = File.join(@container.workspace, 'subdir')
     FileUtils.mkdir_p(sub)
-    File.write(File.join(sub, "f.txt"), "data")
+    File.write(File.join(sub, 'f.txt'), 'data')
 
     dest = File.join(Dir.tmpdir, "ci_outdir_#{SecureRandom.hex(4)}")
-    assert @container.copy_out("subdir", dest)
-    assert File.exist?(File.join(dest, "f.txt"))
+    assert @container.copy_out('subdir', dest)
+    assert File.exist?(File.join(dest, 'f.txt'))
   ensure
     FileUtils.rm_rf(dest)
   end
 
   def test_copy_out_nonexistent_returns_false
-    refute @container.copy_out("no_such_file", "/tmp/test_dest")
+    refute @container.copy_out('no_such_file', '/tmp/test_dest')
   end
 
   def test_copy_out_creates_parent_dirs
-    File.write(File.join(@container.workspace, "file.txt"), "data")
-    dest = File.join(Dir.tmpdir, "ci_deep_#{SecureRandom.hex(4)}", "nested", "file.txt")
+    File.write(File.join(@container.workspace, 'file.txt'), 'data')
+    dest = File.join(Dir.tmpdir, "ci_deep_#{SecureRandom.hex(4)}", 'nested', 'file.txt')
 
-    assert @container.copy_out("file.txt", dest)
-    assert_equal "data", File.read(dest)
+    assert @container.copy_out('file.txt', dest)
+    assert_equal 'data', File.read(dest)
   ensure
-    FileUtils.rm_rf(File.join(Dir.tmpdir, "ci_deep_*"))
+    FileUtils.rm_rf(File.join(Dir.tmpdir, 'ci_deep_*'))
   end
 
   # --- list_files ---
   def test_list_files_default
-    File.write(File.join(@container.workspace, "a.txt"), "a")
+    File.write(File.join(@container.workspace, 'a.txt'), 'a')
     files = @container.list_files
-    assert_includes files, "a.txt"
-    refute_includes files, "."
-    refute_includes files, ".."
+    assert_includes files, 'a.txt'
+    refute_includes files, '.'
+    refute_includes files, '..'
   end
 
   def test_list_files_subdirectory
-    sub = File.join(@container.workspace, "sub")
+    sub = File.join(@container.workspace, 'sub')
     FileUtils.mkdir_p(sub)
-    File.write(File.join(sub, "c.txt"), "c")
+    File.write(File.join(sub, 'c.txt'), 'c')
 
-    files = @container.list_files("sub")
-    assert_equal ["c.txt"], files
+    files = @container.list_files('sub')
+    assert_equal ['c.txt'], files
   end
 
   def test_list_files_nonexistent
-    assert_equal [], @container.list_files("nonexistent")
+    assert_equal [], @container.list_files('nonexistent')
   end
 
   # --- workspace_size ---
   def test_workspace_size_with_files
-    File.write(File.join(@container.workspace, "big.txt"), "x" * 100)
+    File.write(File.join(@container.workspace, 'big.txt'), 'x' * 100)
     assert @container.workspace_size >= 100
   end
 
@@ -257,7 +257,7 @@ class TestContainerInternals < Minitest::Test
   def test_run_missing_workspace
     FileUtils.rm_rf(@container.workspace)
     assert_raises(Exceptions::SandboxSetupError) do
-      @container.run("echo test")
+      @container.run('echo test')
     end
   end
 
@@ -271,71 +271,75 @@ class TestContainerInternals < Minitest::Test
 
   # --- wait_for_process timeout path ---
   def test_wait_for_process_normal
-    pid = spawn("true")
+    pid = spawn('true')
     status = @container.send(:wait_for_process, pid, 5)
     assert_equal 0, status
   end
 
   # --- kill_process_group already dead ---
   def test_kill_process_group_already_dead
-    pid = spawn("true")
+    pid = spawn('true')
     Process.wait(pid)
     # Should not raise
-    @container.send(:kill_process_group, pid) rescue nil
+    begin
+      @container.send(:kill_process_group, pid)
+    rescue StandardError
+      nil
+    end
   end
 
   # --- execute_with_timeout via run (uses actual unshare, but we test the error path) ---
   def test_run_command_execution_error
     # Override build_unshare_command to use a nonexistent binary to test rescue
     @container.define_singleton_method(:build_unshare_command) do |script_path|
-      ["/nonexistent_binary_xyz", script_path]
+      ['/nonexistent_binary_xyz', script_path]
     end
 
     assert_raises(Exceptions::SandboxError) do
-      @container.run("echo test")
+      @container.run('echo test')
     end
   end
 
   # --- execute_with_timeout full path (bypass unshare by using sh directly) ---
   def test_execute_with_timeout_success
     @container.define_singleton_method(:build_unshare_command) do |script_path|
-      ["sh", script_path]
+      ['sh', script_path]
     end
-    result = @container.run("echo sandbox_test")
+    result = @container.run('echo sandbox_test')
     assert result[:success]
     assert_match(/sandbox_test/, result[:stdout])
   end
 
   def test_execute_with_timeout_failure
     @container.define_singleton_method(:build_unshare_command) do |script_path|
-      ["sh", script_path]
+      ['sh', script_path]
     end
-    result = @container.run("exit 42")
+    result = @container.run('exit 42')
     refute result[:success]
     assert_equal 42, result[:status]
   end
 
   def test_execute_with_timeout_with_env_vars
     @container.define_singleton_method(:build_unshare_command) do |script_path|
-      ["sh", script_path]
+      ['sh', script_path]
     end
-    result = @container.run("echo $MY_VAR", env_vars: { "MY_VAR" => "test_val" })
+    result = @container.run('echo $MY_VAR', env_vars: { 'MY_VAR' => 'test_val' })
     assert result[:success]
     assert_match(/test_val/, result[:stdout])
   end
 
   def test_execute_with_timeout_cleanup_scripts
     @container.define_singleton_method(:build_unshare_command) do |script_path|
-      ["sh", script_path]
+      ['sh', script_path]
     end
-    @container.run("true")
-    scripts = Dir.glob(File.join(@container.workspace, ".exec_*.sh"))
+    @container.run('true')
+    scripts = Dir.glob(File.join(@container.workspace, '.exec_*.sh'))
     assert_equal [], scripts
   end
 
   # --- wait_for_process timeout path ---
   def test_wait_for_process_timeout
-    pid = spawn("sleep 10")
+    pid = spawn('sleep 10')
     status = @container.send(:wait_for_process, pid, 0.5)
     assert_equal 124, status
   end
@@ -350,7 +354,7 @@ class TestNamespaceSandboxModuleMethods < Minitest::Test
   end
 
   def test_setup_workspace_failure_message
-    e = Exceptions::SandboxSetupError.new("Failed to create workspace: permission denied")
+    e = Exceptions::SandboxSetupError.new('Failed to create workspace: permission denied')
     assert_match(/Failed to create workspace/, e.message)
   end
 end
