@@ -22,7 +22,7 @@ end
 desc 'Auto-format code with RuboCop'
 RuboCop::RakeTask.new(:format) do |task|
   task.patterns = ['**/*.rb']
-  task.options = ['-a'] # use '-a' for safe autocorrect only
+  task.options = ['-a']
 end
 
 task default: :test
